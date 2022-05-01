@@ -8,9 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-sys.path.append('utils')
-from proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
-from log_uniform_sampler import LogUniformSampler, sample_logits
+#sys.path.append('utils')
+from utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
+from utils.log_uniform_sampler import LogUniformSampler, sample_logits
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, demb):
@@ -216,7 +216,11 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
         self.r_net = nn.Linear(self.d_model, self.n_head * self.d_head, bias=False)
 
     def forward(self, w, r, r_w_bias, r_r_bias, attn_mask=None, mems=None):
+        # w is the lower layer output : data + context
+        # r is the position embedding
         qlen, rlen, bsz = w.size(0), r.size(0), w.size(1)
+        # rlen : total len 
+        # qlen : data + context 
 
         if mems is not None:
             cat = torch.cat([mems, w], 0)
@@ -227,6 +231,7 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
             r_head_k = self.r_net(r)
 
             w_head_q, w_head_k, w_head_v = torch.chunk(w_heads, 3, dim=-1)
+            # only the qlen right most tokens will have queries
             w_head_q = w_head_q[-qlen:]
         else:
             if self.pre_lnorm:
@@ -616,7 +621,7 @@ class MemTransformerLM(nn.Module):
         else:
             return None
 
-    def _update_mems(self, hids, mems, qlen, mlen):
+    def _update_mems(self, hids, mems, mlen, qlen):
         # does not deal with None
         if mems is None: return None
 
@@ -781,8 +786,8 @@ if __name__ == '__main__':
     device = torch.device("cuda" if args.cuda else "cpu")
 
     B = 4
-    tgt_len, mem_len, ext_len = 36, 36, 0
-    data_len = tgt_len * 20
+    tgt_len, mem_len, ext_len = 6, 12, 8
+    data_len = tgt_len * 10
     args.n_token = 10000
 
     import data_utils
